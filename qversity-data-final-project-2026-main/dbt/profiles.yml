@@ -1,0 +1,12 @@
+qversity:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: postgres
+      user: qversity-admin
+      password: qversity-admin
+      port: 5432
+      dbname: qversity
+      schema: public
+      threads: 1
