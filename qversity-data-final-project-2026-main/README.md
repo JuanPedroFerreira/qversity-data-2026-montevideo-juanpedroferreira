@@ -183,7 +183,7 @@ docker compose down -v --rmi local
 
 ## Participant
 
-- **Name**: [Your Full Name]
-- **Email**: [your.email@example.com]
-- **City**: [Your City]
+- **Name**: Juan Pedro Ferreira
+- **Email**: fjuanpedro93@gmail.com
+- **City**: Ciudad de la Costa, Canelones
 - **Cohort**: Qversity 2026
