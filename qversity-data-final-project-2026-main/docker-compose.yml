@@ -9,6 +9,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-qversity}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_schemas.sql:/docker-entrypoint-initdb.d/init_schemas.sql
     ports:
       - "5432:5432"
     healthcheck:
@@ -40,6 +41,7 @@ services:
       - ./logs:/opt/airflow/logs
       - ./data:/opt/airflow/data
       - ./dbt:/opt/airflow/dbt
+      - ./scripts:/opt/airflow/scripts
     ports:
       - "8080:8080"
     command: >
