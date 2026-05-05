@@ -8,7 +8,7 @@ import psycopg2, requests
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-S3_DATASET_URL = os.getenv("S3_DATASET_URL", "https://qversity-raw-publicdata.s3.amazonaws.com/fintech_banking_dataset.json")
+S3_DATASET_URL = os.getenv("S3_DATASET_URL", "https://qversity-raw-public-data.s3.amazonaws.com/fintech_banking_dataset.json")
 LOCAL_DATASET_PATH = os.getenv("LOCAL_DATASET_PATH", "/opt/airflow/data/raw/fintech_banking_dataset.json")
 
 DB_CONFIG = {
