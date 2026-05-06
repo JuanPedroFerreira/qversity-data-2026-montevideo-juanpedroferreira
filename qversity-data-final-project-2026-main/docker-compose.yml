@@ -19,7 +19,9 @@ services:
       retries: 5
 
   airflow:
-    image: apache/airflow:2.7.3-python3.11
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
     restart: on-failure
     depends_on:
       postgres:
@@ -28,6 +30,13 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-qversity-admin}:${POSTGRES_PASSWORD:-qversity-admin}@postgres/${POSTGRES_DB:-qversity}
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-qversity}
+      POSTGRES_USER: ${POSTGRES_USER:-qversity-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-qversity-admin}
+      S3_DATASET_URL: ${S3_DATASET_URL}
       _PIP_ADDITIONAL_REQUIREMENTS: >-
         dbt-core
         dbt-postgres
@@ -42,14 +51,15 @@ services:
       - ./data:/opt/airflow/data
       - ./dbt:/opt/airflow/dbt
       - ./scripts:/opt/airflow/scripts
+      - ./spark/jars:/opt/spark/jars
     ports:
       - "8080:8080"
     command: >
-      bash -c "
-      airflow db init &&
-      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
-      airflow webserver & airflow scheduler
-      "
+          bash -c "
+          airflow db init &&
+          airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true &&
+          airflow webserver & airflow scheduler
+          "
 
   dbt:
     image: python:3.11
