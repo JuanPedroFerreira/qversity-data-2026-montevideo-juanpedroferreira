@@ -1,0 +1,139 @@
+version: 2
+
+models:
+  - name: dim_customers
+    description: "Cleaned and normalized customer dimension table"
+    columns:
+      - name: customer_id
+        description: "Unique customer identifier"
+        tests:
+          - unique
+          - not_null
+      - name: email
+        tests:
+          - not_null
+      - name: country
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['CO', 'UY', 'AR', 'MX', 'CL', 'PE', 'BR']
+      - name: kyc_status
+        tests:
+          - accepted_values:
+              values: ['verified', 'pending', 'expired', 'rejected']
+      - name: customer_segment
+        tests:
+          - accepted_values:
+              values: ['retail', 'premium', 'private_banking', 'sme']
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['active', 'inactive', 'suspended', 'closed']
+
+  - name: dim_accounts
+    description: "Cleaned and normalized accounts dimension table"
+    columns:
+      - name: account_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+      - name: account_type
+        tests:
+          - accepted_values:
+              values: ['savings', 'checking', 'investment', 'credit_card']
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['active', 'closed', 'frozen']
+
+  - name: fct_transactions
+    description: "Cleaned and normalized transactions fact table"
+    columns:
+      - name: transaction_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+      - name: account_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_accounts')
+              field: account_id
+      - name: amount
+        tests:
+          - not_null
+      - name: transaction_type
+        tests:
+          - accepted_values:
+              values: ['deposit', 'withdrawal', 'transfer', 'payment', 'refund', 'fee']
+      - name: channel
+        tests:
+          - accepted_values:
+              values: ['mobile', 'web', 'atm', 'branch', 'pos', 'phone']
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['completed', 'pending', 'failed', 'reversed']
+
+  - name: fct_loans
+    description: "Cleaned and normalized loans fact table"
+    columns:
+      - name: loan_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+      - name: loan_type
+        tests:
+          - accepted_values:
+              values: ['personal', 'mortgage', 'auto', 'education', 'business']
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['current', 'delinquent', 'default', 'paid_off']
+
+  - name: dim_credit_info
+    description: "Cleaned credit information per customer"
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+      - name: credit_score
+        tests:
+          - not_null
+
+  - name: dim_digital_engagement
+    description: "Digital engagement metrics per customer"
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+      - name: preferred_channel
+        tests:
+          - accepted_values:
+              values: ['mobile', 'web', 'atm', 'branch', 'pos', 'phone']

@@ -16,4 +16,4 @@ select
     first_name,
     last_name,
     current_timestamp as report_generated_at
-from {{ ref('silver_customers') }}
+from {{ ref('dim_customers') }}

@@ -1,17 +1,13 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', schema='bronze') }}
 
--- Bronze layer: Raw fintech/banking data
--- This is a placeholder. Replace with your actual bronze model that
--- reads from the raw JSON table loaded by the Airflow DAG.
---
--- Your actual model should reference the table where raw JSON records
--- are stored as jsonb. For example:
---
---   SELECT
---       id,
---       data,          -- jsonb column with full customer record
---       load_timestamp -- when the record was ingested
---   FROM {{ source('raw', 'fintech_raw') }}
+-- Bronze source model
+-- References the raw table loaded by the Airflow DAG from S3
+select
+    id,
+    data,
+    source_url,
+    load_timestamp
+from bronze.raw_fintech_data
 
 select
     'CUST-0000001' as customer_id,

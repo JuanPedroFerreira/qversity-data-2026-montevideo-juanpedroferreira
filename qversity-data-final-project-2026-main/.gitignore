@@ -110,3 +110,7 @@ Thumbs.db
 *.pem
 .env.local
 .env.production
+
+spark/jars/
+notebooks/
+dbt/.user.yml

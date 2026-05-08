@@ -105,6 +105,7 @@ TRANSACTION_SCHEMA = ArrayType(StructType([
 LOAN_SCHEMA = ArrayType(StructType([
     StructField("loan_id", StringType()),
     StructField("type", StringType()),
+    StructField("currency", StringType()),
     StructField("principal", DoubleType()),
     StructField("outstanding_balance", DoubleType()),
     StructField("interest_rate", DoubleType()),
@@ -119,6 +120,7 @@ LOAN_SCHEMA = ArrayType(StructType([
 
 CREDIT_INFO_SCHEMA = StructType([
     StructField("credit_score", IntegerType()),
+    StructField("currency", StringType()),
     StructField("utilization_pct", DoubleType()),
     StructField("total_limit", DoubleType()),
     StructField("total_used", DoubleType()),
@@ -276,6 +278,7 @@ def flatten_loans(df):
         col("load_timestamp"),
         col("loan.loan_id"),
         col("loan.type"),
+        col("loan.currency"),
         col("loan.principal"),
         col("loan.outstanding_balance"),
         col("loan.interest_rate"),
@@ -302,6 +305,7 @@ def flatten_credit_info(df):
         col("customer_id"),
         col("load_timestamp"),
         col("credit_info.credit_score"),
+        col("credit_info.currency"),
         col("credit_info.utilization_pct"),
         col("credit_info.total_limit"),
         col("credit_info.total_used"),
