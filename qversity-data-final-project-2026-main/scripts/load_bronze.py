@@ -1,6 +1,3 @@
-"""
-load_bronze.py - Bronze ingestion with S3 + local fallback
-"""
 import json, logging, os
 from datetime import datetime, timezone
 import psycopg2, requests
@@ -8,9 +5,13 @@ import psycopg2, requests
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
+## Size razonable para evitar saturar la memoria
+BATCH_SIZE = 500
+
 S3_DATASET_URL = os.getenv("S3_DATASET_URL", "https://qversity-raw-public-data.s3.amazonaws.com/fintech_banking_dataset.json")
 LOCAL_DATASET_PATH = os.getenv("LOCAL_DATASET_PATH", "/opt/airflow/data/raw/fintech_banking_dataset.json")
 
+## Diccionario con las credenciales de PostgreSQL
 DB_CONFIG = {
     "host":     os.getenv("POSTGRES_HOST", "postgres"),
     "port":     int(os.getenv("POSTGRES_PORT", 5432)),
@@ -19,19 +20,17 @@ DB_CONFIG = {
     "password": os.getenv("POSTGRES_PASSWORD", "qversity-admin"),
 }
 
-BATCH_SIZE = 500
-
 def _parse_payload(payload):
-    if isinstance(payload, list):
+    if isinstance(payload, list): ## [{cliente1}, {cliente2}]
         return payload
-    elif isinstance(payload, dict):
+    elif isinstance(payload, dict): ## {"customers": [{cliente1}, {cliente2}]}
         for key, value in payload.items():
             if isinstance(value, list):
                 log.info(f"Registros bajo clave: '{key}'")
                 return value
-    raise ValueError(f"Formato inesperado: {type(payload)}")
+    raise ValueError(f"Formato inesperado: {type(payload)}") ## si no es ninguno de los dos tiramos error
 
-def download_dataset(url: str):
+def download_dataset(url: str): ## Recibe la URL de S3 para descargar
     try:
         log.info(f"Descargando desde S3: {url}")
         r = requests.get(url, timeout=120)
@@ -84,7 +83,6 @@ def validate_bronze(conn):
             log.warning(f"{nulls} registros sin customer_id.")
 
 def run_bronze_ingestion(**context):
-    log.info("=== INICIANDO INGESTA BRONZE ===")
     records = download_dataset(S3_DATASET_URL)
     conn = psycopg2.connect(**DB_CONFIG)
     try:

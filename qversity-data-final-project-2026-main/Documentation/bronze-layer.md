@@ -1,12 +1,6 @@
-# Bronze Layer — ¿Qué es y como lo logramos?
+# Bronze Layer
  
-## La idea simple
- 
-Imaginá que trabajás en una empresa fintech grande y todos los días llegan miles de registros de clientes desde distintos sistemas. Esos datos llegan en formato JSON — un formato muy común pero muy desordenado, donde toda la información de un cliente (sus cuentas, sus transacciones, sus préstamos) viene apilada en un solo bloque de texto.
- 
-El problema es que así no podés hacer nada útil con esos datos. No podés buscar fácilmente, no podés cruzar información, no podés hacer reportes.
- 
-**La Bronze Layer es el primer paso para resolver eso.**
+**La Bronze Layer es el primer paso para resolver el problema.**
  
 ---
  
@@ -16,15 +10,15 @@ La Bronze Layer tiene un único trabajo: **guardar los datos tal como llegan, si
  
 Es como una bodega donde guardás las cajas tal como te las entregaron, sin abrir ni mover nada. El objetivo es tener siempre disponible el dato original, por si algo sale mal más adelante.
  
-En nuestro caso:
+En este caso:
 - Los datos vienen de un archivo JSON en **AWS S3** (un servicio de almacenamiento en la nube de Amazon)
-- Los guardamos en **PostgreSQL** (nuestra base de datos)
+- Los voy a guardar en **PostgreSQL** (como base de datos)
 - Cada registro de cliente queda guardado como una fila en la tabla `bronze.raw_fintech_data`
 ---
  
 ## ¿Cómo funciona el proceso?
  
-El proceso tiene 4 pasos y lo coordina **Apache Airflow**, que es como el director de orquesta del pipeline:
+El proceso tiene 4 pasos y lo va a coordinar **Apache Airflow**, que va a ser el director de orquesta del pipeline:
  
 ```
 1. Airflow se despierta y ejecuta el DAG
@@ -41,24 +35,44 @@ El proceso tiene 4 pasos y lo coordina **Apache Airflow**, que es como el direct
 ```
  
 ---
+
+## Breve explicacion de los archivos de Bronze
  
-## ¿Qué es Airflow y por qué lo usamos?
+### `scripts/init_schemas.sql`
  
-Airflow es una herramienta que nos permite **programar y monitorear tareas automáticamente**. En vez de correr un script manualmente cada vez, Airflow lo hace solo, en orden, y nos avisa si algo falla.
+Se ejecuta automáticamente cuando Docker levanta PostgreSQL por primera vez. Hace dos cosas:
  
-En nuestro pipeline, Airflow tiene un "DAG" (que es básicamente un flujo de trabajo) llamado `qversity_fintech_pipeline` con 5 tareas en cadena:
+- Crea los 3 schemas de la arquitectura medallion: `bronze`, `silver` y `gold`
+- Crea la tabla `bronze.raw_fintech_data` con sus columnas (`id`, `data`, `source_url`, `load_timestamp`) y dos índices para mejorar la performance cuando PySpark lee Bronze: un índice GIN sobre el JSONB completo y un índice específico sobre `customer_id`
+Si la tabla ya existe, no hace nada, por el `IF NOT EXISTS`.
+ 
+---
+ 
+### `scripts/load_bronze.py`
+ 
+Es el script que Airflow ejecuta en la tarea `ingest_bronze`. Tiene 4 responsabilidades:
+ 
+**Descargar el dataset** Intenta S3 primero. Si S3 falla, cae al archivo local en `data/raw/`. Esto hace el pipeline robusto ante problemas de conectividad.
+ 
+**Truncar la tabla** Borra todos los registros anteriores y reinicia el contador de IDs antes de insertar. Garantiza idempotencia.
+ 
+**Insertar en batches de 500** Insertar de a 1 haría 5.100 roundtrips a la base de datos. Con batches de 500 hacemos solo 11 inserts eficientes.
+ 
+**Validar** Verifica que haya al menos 1.000 registros cargados. Si algo salió mal en la descarga, el pipeline falla acá con un error claro en vez de continuar con datos corruptos.
+ 
+## Airflow
+ 
+Airflow es una herramienta que  permite **programar y monitorear tareas automáticamente**. En vez de correr un script manualmente cada vez, Airflow lo hace solo, en orden, y avisa si algo falla.
+ 
+En este pipeline, Airflow tiene un "DAG" (que es básicamente un flujo de trabajo) llamado `qversity_fintech_pipeline` con 5 tareas en cadena:
  
 ```
 ingest_bronze → spark_flatten → dbt_run_silver → dbt_run_gold → dbt_test
 ```
  
-La Bronze Layer es la primera tarea: `ingest_bronze`.
- 
----
- 
 ## ¿Cómo se ve el dato en Bronze?
  
-Antes de procesarlo, cada cliente se ve así en la base de datos — un bloque JSON con toda su información adentro:
+Antes de procesarlo, cada cliente se ve así en la base de datos, un bloque JSON con toda su información adentro:
  
 ```json
 {
@@ -85,7 +99,7 @@ Todo eso queda guardado en **una sola fila** en la tabla Bronze. Es como guardar
  
 ---
  
-## ¿Por qué guardamos todo sin transformar?
+## ¿Por qué se guarda todo sin transformar?
  
 Tres razones importantes:
  
@@ -99,7 +113,7 @@ Tres razones importantes:
  
 ## Resultado
  
-Al terminar la Bronze Layer, tenemos:
+Al terminar la Bronze Layer, se ven:
  
 | Métrica | Valor |
 |---------|-------|
@@ -110,5 +124,5 @@ Al terminar la Bronze Layer, tenemos:
 
 Aclaracion:
 
-Elegimos truncar porque el dataset es estático. En un caso de uso real con datos que cambian diariamente, usaríamos un enfoque de append con deduplicación por customer_id y load_timestamp.
+Se elije truncar porque el dataset es estático. En un caso de uso real con datos que cambian diariamente, usaríamos un enfoque de append con deduplicación por customer_id y load_timestamp.
 ---
