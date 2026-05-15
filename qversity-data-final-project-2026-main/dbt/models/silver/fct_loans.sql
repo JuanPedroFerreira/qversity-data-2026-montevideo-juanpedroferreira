@@ -26,3 +26,5 @@ select
 from silver.stg_loans
 where loan_id is not null
   and customer_id is not null
+  and lower(type) in ('personal', 'mortgage', 'auto', 'education', 'business')
+  and lower(status) in ('current', 'delinquent', 'default', 'paid_off')

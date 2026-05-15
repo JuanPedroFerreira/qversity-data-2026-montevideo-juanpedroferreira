@@ -1,10 +1,3 @@
-"""
-flatten_bronze.py
-=================
-PySpark job: Bronze → Silver flattening and deduplication.
-Author: Juan Pedro Ferreira — Qversity 2026 Montevideo
-"""
-
 import os
 import logging
 from pyspark.sql import SparkSession
@@ -21,7 +14,6 @@ from pyspark.sql.window import Window
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-# ── Configuration ─────────────────────────────────────────────────────────────
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB   = os.getenv("POSTGRES_DB", "qversity")
@@ -37,7 +29,6 @@ JDBC_PROPS = {
     "driver": "org.postgresql.Driver"
 }
 
-# ── Spark Session ─────────────────────────────────────────────────────────────
 def create_spark_session():
     return (
         SparkSession.builder
@@ -48,7 +39,6 @@ def create_spark_session():
         .getOrCreate()
     )
 
-# ── Schema Definitions ────────────────────────────────────────────────────────
 CUSTOMER_SCHEMA = StructType([
     StructField("customer_id", StringType()),
     StructField("first_name", StringType()),
@@ -141,7 +131,6 @@ DIGITAL_ENGAGEMENT_SCHEMA = StructType([
     StructField("paperless_statements", BooleanType()),
 ])
 
-# ── Deduplication ─────────────────────────────────────────────────────────────
 def deduplicate(df, partition_col, order_col="load_timestamp"):
     window = Window.partitionBy(partition_col).orderBy(col(order_col).desc())
     return (
@@ -150,13 +139,7 @@ def deduplicate(df, partition_col, order_col="load_timestamp"):
           .drop("row_num")
     )
 
-# ── Read Bronze ───────────────────────────────────────────────────────────────
 def read_bronze(spark):
-    """
-    Reads bronze.raw_fintech_data via JDBC.
-    The 'data' column comes as STRING from PostgreSQL JSONB,
-    so we parse it with from_json using the customer schema.
-    """
     log.info("Reading from bronze.raw_fintech_data...")
     raw_df = spark.read.jdbc(
         url=JDBC_URL,
@@ -165,12 +148,10 @@ def read_bronze(spark):
     )
     log.info(f"Bronze records loaded: {raw_df.count()}")
 
-    # Parse the JSON string into a struct
     df = raw_df.withColumn("json", from_json(col("data").cast("string"), CUSTOMER_SCHEMA))
     log.info("Bronze JSON parsed successfully.")
     return df
 
-# ── Write to Silver ───────────────────────────────────────────────────────────
 def write_to_silver(df, table_name):
     full_table = f"silver.{table_name}"
     count = df.count()
@@ -183,7 +164,6 @@ def write_to_silver(df, table_name):
     )
     log.info(f"Done: {full_table} ({count} rows)")
 
-# ── Flatten Functions ─────────────────────────────────────────────────────────
 def flatten_customers(df):
     log.info("Flattening customers...")
     result = df.select(
@@ -341,7 +321,6 @@ def flatten_digital_engagement(df):
     log.info(f"Digital engagement after dedup: {result.count()}")
     return result
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     log.info("=== STARTING PYSPARK SILVER FLATTENING JOB ===")
     spark = create_spark_session()
