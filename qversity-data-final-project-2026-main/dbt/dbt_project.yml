@@ -8,7 +8,7 @@ model-paths: ["models"]
 seed-paths: ["seeds"]
 test-paths: ["tests"]
 macro-paths: ["macros"]
-analysis-paths: ["analysis"]
+analysis-paths: ["analyses"]
 snapshot-paths: ["snapshots"]
 
 target-path: "target"
@@ -18,19 +18,12 @@ clean-targets:
 
 models:
   qversity:
-    # Bronze layer - raw JSON data staging
     bronze:
       +materialized: table
       +schema: bronze
-    # Silver layer - cleaned and normalized data
     silver:
       +materialized: table
       +schema: silver
-    # Gold layer - business-ready analytics
     gold:
       +materialized: table
       +schema: gold
-
-seeds:
-  qversity:
-    +schema: raw

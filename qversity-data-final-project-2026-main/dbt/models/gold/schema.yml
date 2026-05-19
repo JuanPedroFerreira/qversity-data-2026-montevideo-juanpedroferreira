@@ -1,0 +1,209 @@
+version: 2
+
+models:
+  - name: gold_customers
+    description: "Customer demographics and segmentation. Grain: one row per customer. Answers Q9, Q10, Q11, Q12, Q13, Q14."
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+      - name: country
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['CO', 'UY', 'AR', 'MX', 'CL', 'PE', 'BR']
+      - name: customer_segment
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['retail', 'premium', 'private_banking', 'sme']
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['active', 'inactive', 'suspended', 'closed']
+      - name: kyc_status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['verified', 'pending', 'expired', 'rejected']
+      - name: risk_bucket
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['low', 'medium', 'high', 'critical']
+      - name: age_bucket
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['18-25', '26-35', '36-45', '46-55', '56-65', '65+']
+      - name: registration_month
+        tests:
+          - not_null
+
+  - name: gold_transactions
+    description: "Transaction patterns with international flag and revenue flag. Grain: one row per transaction. Answers Q15, Q16, Q17, Q18, Q19."
+    columns:
+      - name: transaction_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: transaction_date
+        tests:
+          - not_null
+      - name: amount
+        tests:
+          - not_null
+      - name: amount_usd
+        tests:
+          - not_null
+      - name: transaction_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['deposit', 'withdrawal', 'transfer', 'payment', 'refund', 'fee']
+      - name: channel
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['mobile', 'web', 'atm', 'branch', 'pos', 'phone']
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['completed', 'pending', 'failed', 'reversed']
+      - name: is_failed
+        tests:
+          - not_null
+      - name: is_revenue
+        tests:
+          - not_null
+      - name: is_international
+        tests:
+          - not_null
+
+  - name: gold_revenue
+    description: "Revenue aggregated by segment, country and channel in USD. Grain: one row per segment + country + channel. Answers Q1, Q3. Note: Q2 (balance by country) is answered via gold_accounts directly to avoid grain mismatch with the channel dimension."
+    columns:
+      - name: customer_segment
+        tests:
+          - not_null
+      - name: country
+        tests:
+          - not_null
+      - name: channel
+        tests:
+          - not_null
+      - name: total_revenue_usd
+        tests:
+          - not_null
+      - name: avg_revenue_per_customer_usd
+        tests:
+          - not_null
+
+  - name: gold_risk
+    description: "Risk and credit metrics per customer-loan combination. Grain: one row per customer-loan. Answers Q4, Q5, Q6, Q7, Q8, Q9."
+    columns:
+      - name: customer_id
+        tests:
+          - not_null
+      - name: risk_bucket
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['low', 'medium', 'high', 'critical']
+      - name: is_delinquent
+        tests:
+          - not_null
+
+  - name: gold_engagement
+    description: "Digital engagement metrics per customer. Grain: one row per customer. Answers Q20, Q21."
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+      - name: age_bucket
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['18-25', '26-35', '36-45', '46-55', '56-65', '65+']
+      - name: channel_preference
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['digital', 'physical', 'other']
+      - name: is_fully_digital
+        tests:
+          - not_null
+
+  - name: gold_accounts
+    description: "Account details with balance in USD. Grain: one row per account. Answers Q2, Q22."
+    columns:
+      - name: account_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: account_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['savings', 'checking', 'investment', 'credit_card']
+      - name: account_status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['active', 'closed', 'frozen']
+
+  - name: gold_loans
+    description: "Loan portfolio with delinquency flags and USD conversion. Grain: one row per loan. Answers Q23, Q8."
+    columns:
+      - name: loan_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: loan_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['personal', 'mortgage', 'auto', 'education', 'business']
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['current', 'delinquent', 'default', 'paid_off']
+      - name: is_delinquent
+        tests:
+          - not_null
+      - name: dpd_bucket
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['current', '1-30 days', '31-60 days', '61-90 days', '90+ days']
+      - name: interest_income_usd
+        tests:
+          - not_null
+
+  - name: gold_products
+    description: "Product count per customer by segment. Grain: one row per customer. Answers Q24."
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_segment
+        tests:
+          - not_null
+      - name: total_products
+        tests:
+          - not_null
