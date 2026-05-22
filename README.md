@@ -123,19 +123,42 @@ Without this custom image, the `spark_flatten` task would fail because PySpark c
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/qversity-data-2026-montevideo-juanpedroferreira.git
+git clone https://github.com/JuanPedroFerreira/qversity-data-2026-montevideo-juanpedroferreira.git
 cd qversity-data-2026-montevideo-juanpedroferreira
+cd qversity-data-final-project-2026-main
 
 # Copy environment file
+# Windows:
+copy env.example .env
+# Linux/Mac:
 cp env.example .env
+```
 
-# The .env file should contain:
-# COMPOSE_PROJECT_NAME=qversity
-# AIRFLOW_UID=50000
-# POSTGRES_USER=qversity-admin
-# POSTGRES_PASSWORD=qversity-admin
-# POSTGRES_DB=qversity
-# S3_DATASET_URL=https://qversity-raw-public-data.s3.amazonaws.com/fintech_banking_dataset.json
+The `.env` file should contain:
+
+```
+# Docker Compose Configuration
+COMPOSE_PROJECT_NAME=qversity
+
+# Airflow Configuration
+AIRFLOW_UID=50000
+AIRFLOW_PROJ_DIR=.
+_AIRFLOW_WWW_USER_USERNAME=admin
+_AIRFLOW_WWW_USER_PASSWORD=admin
+
+# PostgreSQL Configuration
+POSTGRES_USER=qversity-admin
+POSTGRES_PASSWORD=qversity-admin
+POSTGRES_DB=qversity
+
+# dbt Configuration
+DBT_PROFILES_DIR=/dbt
+DBT_PROJECT_DIR=/dbt
+
+# S3 Data Source
+S3_BUCKET=qversity-raw-public-data
+S3_KEY=fintech_banking_dataset.json
+S3_DATASET_URL=https://qversity-raw-public-data.s3.amazonaws.com/fintech_banking_dataset.json
 ```
 
 ### Install Pre-commit Hooks (optional but recommended)
@@ -189,6 +212,7 @@ docker compose exec airflow airflow dags trigger qversity_fintech_pipeline
 # Check in the Airflow UI
 # Open http://localhost:8080
 # Login: admin / admin
+# It may take a few seconds to open.
 ```
 
 The DAG runs 5 tasks in sequence:
@@ -836,7 +860,7 @@ The 49% means that of 5,000 customers, approximately 2,450 have downloaded and r
 **Visual**: Stacked bar chart "Digital vs Physical by Age Group"
 **Model**: `gold_engagement` (field `channel_preference`)
 
-Channel preference classification: digital = mobile or web (remote, app-based banking), physical = branch or atm (in-person banking), other = pos (point of sale terminal in stores, which does not fit clearly into either remote or in-person banking categories).
+Channel preference classification: digital = mobile or web (remote, app-based banking), physical = branch or atm (in-person banking), other = pos and phone.
 
 ---
 

@@ -1,7 +1,5 @@
 {{ config(materialized='table', schema='bronze') }}
 
--- Bronze source model
--- References the raw table loaded by the Airflow DAG from S3
 select
     id,
     data,

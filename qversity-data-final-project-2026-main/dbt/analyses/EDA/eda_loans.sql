@@ -57,7 +57,6 @@ ORDER BY total DESC;
 
 
 -- Resultado: USD: 3,893 (50.8%) + 7 monedas LATAM
--- A diferencia de credit_info, acá USD domina con el 50%
 -- Las monedas LATAM se distribuyen el otro 50%
 SELECT currency, COUNT(*) as total,
        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as pct

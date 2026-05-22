@@ -24,7 +24,7 @@ SELECT
 FROM silver.stg_credit_info;
 
 -- Bankruptcy flag
--- 568 nulls, 2263 false, 2169 true — distribución bastante balanceada
+-- 568 nulls, 2263 false, 2169 true distribución bastante balanceada
 SELECT bankruptcy_flag, COUNT(*) as total
 FROM silver.stg_credit_info
 GROUP BY bankruptcy_flag;
@@ -39,7 +39,7 @@ FROM silver.stg_credit_info;
 
 
 -- Nulls en total_limit y total_used
--- 157 y 152 nulls respectivamente — los dejo como NULL, no tiene sentido imputar
+-- 157 y 152 nulls respectivamente los dejo como NULL, no tiene sentido imputar
 SELECT
     COUNT(CASE WHEN total_limit IS NULL THEN 1 END) as null_limit,
     COUNT(CASE WHEN total_used IS NULL THEN 1 END)  as null_used
@@ -62,18 +62,12 @@ SELECT
     ROUND(COUNT(CASE WHEN web_banking_registered THEN 1 END) * 100.0 / COUNT(*), 2) as web_pct
 FROM silver.stg_digital_engagement;
 
--- Encontré 'phone' que no estaba en el PDF, lo agregué a los accepted_values en schema.yml
+-- Encontré 'phone' que no estaba en el PDF.
 SELECT preferred_channel, COUNT(*) as total,
        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as pct
 FROM silver.stg_digital_engagement
 GROUP BY preferred_channel
 ORDER BY total DESC;
-
-mobile	1058	21.16
-branch	1005	20.10
-atm	1002	20.04
-web	971	19.42
-phone	964	19.28
 
 -- Rango 0-60, promedio 30, 374 nulls — los dejo como NULL
 SELECT
