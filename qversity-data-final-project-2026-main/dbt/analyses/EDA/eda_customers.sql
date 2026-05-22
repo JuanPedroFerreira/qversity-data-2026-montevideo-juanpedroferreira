@@ -1,103 +1,90 @@
--- Resultado: 5,000 clientes después de deduplicación (100 duplicados eliminados por PySpark)
-SELECT COUNT(*) as total_customers
-FROM silver.stg_customers;
+-- 5,000 rows total, one per customer
+SELECT COUNT(*) as total FROM silver.stg_credit_info;
 
--- Los campos críticos no tienen nulls
--- gender y relationship_manager tienen algunos — los manejo en dim_customers
+-- Credit score range: found min=-99, max=999,999 — valid range per spec is 300-850
+-- Filtering in dim_credit_info with WHERE credit_score BETWEEN 300 AND 850
+-- 492 invalid records dropped, 4,508 remain
 SELECT
-    COUNT(CASE WHEN customer_id IS NULL THEN 1 END)          as null_customer_id,
-    COUNT(CASE WHEN email IS NULL THEN 1 END)                as null_email,
-    COUNT(CASE WHEN country IS NULL THEN 1 END)              as null_country,
-    COUNT(CASE WHEN date_of_birth IS NULL THEN 1 END)        as null_dob,
-    COUNT(CASE WHEN registration_date IS NULL THEN 1 END)    as null_reg_date,
-    COUNT(CASE WHEN risk_score IS NULL THEN 1 END)           as null_risk_score,
-    COUNT(CASE WHEN gender IS NULL THEN 1 END)               as null_gender,
-    COUNT(CASE WHEN relationship_manager IS NULL THEN 1 END) as null_rm
-FROM silver.stg_customers;
+    MIN(credit_score)                               as min_score,
+    MAX(credit_score)                               as max_score,
+    ROUND(AVG(credit_score)::numeric, 1)            as avg_score,
+    PERCENTILE_CONT(0.5) WITHIN GROUP
+        (ORDER BY credit_score)                     as median_score
+FROM silver.stg_credit_info;
 
+-- utilization_pct has two formats: 0.35 (decimal) and 35 (integer percent)
+-- Normalizing everything to 0-1 in dim_credit_info with CASE WHEN utilization_pct > 1
+SELECT
+    MIN(utilization_pct)                            as min_util,
+    MAX(utilization_pct)                            as max_util,
+    ROUND(AVG(utilization_pct)::numeric, 4)         as avg_util,
+    COUNT(CASE WHEN utilization_pct > 1 THEN 1 END) as above_1
+FROM silver.stg_credit_info;
 
--- PE: 737 | BR: 737 | UY: 730 | MX: 718 | AR: 708 | CO: 704 | CL: 666
-SELECT country, COUNT(*) as total,
+-- bankruptcy_flag: 568 nulls, 2263 false, 2169 true — fairly balanced
+SELECT bankruptcy_flag, COUNT(*) as total
+FROM silver.stg_credit_info
+GROUP BY bankruptcy_flag;
+
+-- late_payments_12m: range 0-12, no anomalies
+SELECT
+    MIN(late_payments_12m)                          as min_late,
+    MAX(late_payments_12m)                          as max_late,
+    ROUND(AVG(late_payments_12m)::numeric, 2)       as avg_late
+FROM silver.stg_credit_info;
+
+-- total_limit: 157 nulls, total_used: 152 nulls — keeping as NULL, no imputation
+SELECT
+    COUNT(CASE WHEN total_limit IS NULL THEN 1 END) as null_limit,
+    COUNT(CASE WHEN total_used IS NULL THEN 1 END)  as null_used
+FROM silver.stg_credit_info;
+
+-- 7 LATAM currencies, evenly distributed
+SELECT currency, COUNT(*) as total,
        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as pct
-FROM silver.stg_customers
-GROUP BY country
+FROM silver.stg_credit_info
+GROUP BY currency
 ORDER BY total DESC;
 
-
--- Problema: valores mezclados en español, inglés y distintas mayúsculas
--- 'retail', 'Retail', 'RETAIL', 'minorista' son todos lo mismo
--- Lo normalizo en dim_customers con CASE LOWER(customer_segment)
-SELECT customer_segment, COUNT(*) as total
-FROM silver.stg_customers
-GROUP BY customer_segment
-ORDER BY total DESC;
-
--- Problema: mismo caso — 'active', 'Active', 'ACTIVE', 'activo' son todos lo mismo
--- Lo normalizo en dim_customers con CASE LOWER(status)
-SELECT status, COUNT(*) as total
-FROM silver.stg_customers
-GROUP BY status
-ORDER BY total DESC;
-
--- Problema: 'pending', 'PENDING' mezclados — mismo tratamiento con LOWER()
-SELECT kyc_status, COUNT(*) as total
-FROM silver.stg_customers
-GROUP BY kyc_status
-ORDER BY total DESC;
-
--- Resultado: 0.04 | 100.0 | 49.81 | 28.67
--- Rango 0-100 como dice el PDF, distribución centrada, sin valores raros
+-- mobile ~49%, web ~49% — nearly identical adoption
 SELECT
-    MIN(risk_score)                         as min_risk,
-    MAX(risk_score)                         as max_risk,
-    ROUND(AVG(risk_score)::numeric, 2)      as avg_risk,
-    ROUND(STDDEV(risk_score)::numeric, 2)   as stddev_risk
-FROM silver.stg_customers;
+    COUNT(*) as total,
+    COUNT(CASE WHEN mobile_app_registered THEN 1 END)   as mobile_users,
+    COUNT(CASE WHEN web_banking_registered THEN 1 END)  as web_users,
+    ROUND(COUNT(CASE WHEN mobile_app_registered THEN 1 END) * 100.0 / COUNT(*), 2) as mobile_pct,
+    ROUND(COUNT(CASE WHEN web_banking_registered THEN 1 END) * 100.0 / COUNT(*), 2) as web_pct
+FROM silver.stg_digital_engagement;
 
-
--- Resultado: F: 1,646 | M: 1,573 | Other: 1,510 | null: 70 | N/A: 57 | '': 50 | ' ': 47 | NA: 47
--- Los valores 'null', 'N/A', '', ' ', 'NA' son nulls disfrazados
--- Los convierto a NULL real en dim_customers con CASE UPPER(TRIM(gender)) podria ser cambiados por other
-SELECT gender, COUNT(*) as total
-FROM silver.stg_customers
-GROUP BY gender
+-- preferred_channel: found 'phone' not documented in the spec
+-- classified as 'other' in gold_engagement since it's neither digital nor in-person
+SELECT preferred_channel, COUNT(*) as total,
+       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as pct
+FROM silver.stg_digital_engagement
+GROUP BY preferred_channel
 ORDER BY total DESC;
 
--- Resultado: 4,669 ya tienen prefijo | 0 nulls
--- Los 331 restantes vienen sin prefijo o con formato (+XX) o con guiones
--- Los normalizo en dim_customers con CASE + regexp_replace
+-- avg_monthly_logins: range 0-60, avg ~30, 374 nulls — keeping as NULL
 SELECT
-    COUNT(CASE WHEN phone_number ~ '^\+\d' THEN 1 END) as normalized_phones,
-    COUNT(CASE WHEN phone_number IS NULL THEN 1 END)    as null_phones
-FROM silver.stg_customers;
+    MIN(avg_monthly_logins)                                 as min_logins,
+    MAX(avg_monthly_logins)                                 as max_logins,
+    ROUND(AVG(avg_monthly_logins)::numeric, 2)              as avg_logins,
+    COUNT(CASE WHEN avg_monthly_logins IS NULL THEN 1 END)  as null_logins
+FROM silver.stg_digital_engagement;
 
--- Resultado: ciudades con nombres correctos en staging
--- Los errores tipográficos (Cusc, Lma, Santiag) aparecen en grupos más pequeños
--- Los corrijo en dim_customers con CASE TRIM(INITCAP(city))
-SELECT city, COUNT(*) as total
-FROM silver.stg_customers
-GROUP BY city
-ORDER BY total DESC
-LIMIT 20;
-
--- Error: "operator does not exist: text > date"
--- registration_date y date_of_birth son TEXT en staging, no DATE
--- No se puede comparar directamente con fechas sin castear
--- La validación de fechas se hace en dim_customers donde el macro parse_date los convierte a DATE
+-- last_login_date stored as text — can't compare with current_date directly
+-- parse_date macro in dim_digital_engagement casts it to DATE
 SELECT
-    MIN(registration_date)  as earliest_registration,
-    MAX(registration_date)  as latest_registration,
-    COUNT(CASE WHEN registration_date > current_date THEN 1 END) as future_dates,
-    COUNT(CASE WHEN registration_date < date_of_birth THEN 1 END) as before_birth,
-    COUNT(CASE WHEN registration_date < date_of_birth + interval '18 years' THEN 1 END) as underage
-FROM silver.stg_customers;
+    MIN(last_login_date)   as min_login,
+    MAX(last_login_date)   as max_login,
+    COUNT(CASE WHEN last_login_date IS NULL THEN 1 END) as null_dates
+FROM silver.stg_digital_engagement;
+-- SQL Error [42883]: operator does not exist: text > date
 
--- Resultado: 47 | 111 | 0 | 0
--- gender y relationship_manager tienen nulls reales — se mantienen como NULL en dim_customers
--- phone y nationality no tienen nulls en staging
+-- push_notifications: 545 nulls, paperless_statements: 553 nulls, avg_monthly_logins: 374 nulls
+-- keeping as NULL — assuming false without confirmation would be wrong
 SELECT
-    COUNT(CASE WHEN gender IS NULL THEN 1 END)               as null_gender,
-    COUNT(CASE WHEN relationship_manager IS NULL THEN 1 END) as null_rm,
-    COUNT(CASE WHEN phone_number IS NULL THEN 1 END)         as null_phone,
-    COUNT(CASE WHEN nationality IS NULL THEN 1 END)          as null_nationality
-FROM silver.stg_customers;
+    COUNT(CASE WHEN push_notifications IS NULL THEN 1 END)    as null_push,
+    COUNT(CASE WHEN paperless_statements IS NULL THEN 1 END)  as null_paperless,
+    COUNT(CASE WHEN avg_monthly_logins IS NULL THEN 1 END)    as null_logins
+FROM silver.stg_digital_engagement;
+-- 545  553  374

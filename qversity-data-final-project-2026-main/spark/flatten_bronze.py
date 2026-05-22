@@ -1,20 +1,24 @@
-"""
-flatten_bronze.py
-=================
-PySpark job: Bronze → Silver flattening and deduplication.
-Author: Juan Pedro Ferreira — Qversity 2026 Montevideo
-"""
-
-import os
 import logging
+import os
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, explode, from_json, get_json_object,
-    row_number, current_timestamp
+    col,
+    current_timestamp,
+    explode,
+    from_json,
+    get_json_object,
+    row_number,
 )
 from pyspark.sql.types import (
-    StructType, StructField, StringType, FloatType,
-    IntegerType, BooleanType, ArrayType, DoubleType
+    ArrayType,
+    BooleanType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
 )
 from pyspark.sql.window import Window
 
@@ -23,7 +27,7 @@ log = logging.getLogger(__name__)
 
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
-POSTGRES_DB   = os.getenv("POSTGRES_DB", "qversity")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "qversity")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "qversity-admin")
 POSTGRES_PASS = os.getenv("POSTGRES_PASSWORD", "qversity-admin")
 
@@ -33,118 +37,139 @@ JDBC_DRIVER = "/opt/spark/jars/postgresql-42.7.3.jar"
 JDBC_PROPS = {
     "user": POSTGRES_USER,
     "password": POSTGRES_PASS,
-    "driver": "org.postgresql.Driver"
+    "driver": "org.postgresql.Driver",
 }
+
 
 def create_spark_session():
     return (
-        SparkSession.builder
-        .appName("Qversity - Bronze to Silver Flattening")
+        SparkSession.builder.appName("Qversity - Bronze to Silver Flattening")
         .config("spark.jars", JDBC_DRIVER)
         .config("spark.sql.shuffle.partitions", "8")
         .config("spark.driver.memory", "2g")
         .getOrCreate()
     )
 
-CUSTOMER_SCHEMA = StructType([
-    StructField("customer_id", StringType()),
-    StructField("first_name", StringType()),
-    StructField("last_name", StringType()),
-    StructField("email", StringType()),
-    StructField("phone_number", StringType()),
-    StructField("date_of_birth", StringType()),
-    StructField("gender", StringType()),
-    StructField("nationality", StringType()),
-    StructField("city", StringType()),
-    StructField("country", StringType()),
-    StructField("address", StringType()),
-    StructField("lat", DoubleType()),
-    StructField("lon", DoubleType()),
-    StructField("registration_date", StringType()),
-    StructField("kyc_status", StringType()),
-    StructField("risk_score", DoubleType()),
-    StructField("customer_segment", StringType()),
-    StructField("relationship_manager", StringType()),
-    StructField("status", StringType()),
-    StructField("accounts", StringType()),
-    StructField("transactions", StringType()),
-    StructField("loans", StringType()),
-    StructField("credit_info", StringType()),
-    StructField("digital_engagement", StringType()),
-])
 
-ACCOUNT_SCHEMA = ArrayType(StructType([
-    StructField("account_id", StringType()),
-    StructField("account_type", StringType()),
-    StructField("currency", StringType()),
-    StructField("balance", DoubleType()),
-    StructField("credit_limit", DoubleType()),
-    StructField("interest_rate", DoubleType()),
-    StructField("opened_date", StringType()),
-    StructField("status", StringType()),
-    StructField("branch_code", StringType()),
-]))
+CUSTOMER_SCHEMA = StructType(
+    [
+        StructField("customer_id", StringType()),
+        StructField("first_name", StringType()),
+        StructField("last_name", StringType()),
+        StructField("email", StringType()),
+        StructField("phone_number", StringType()),
+        StructField("date_of_birth", StringType()),
+        StructField("gender", StringType()),
+        StructField("nationality", StringType()),
+        StructField("city", StringType()),
+        StructField("country", StringType()),
+        StructField("address", StringType()),
+        StructField("lat", DoubleType()),
+        StructField("lon", DoubleType()),
+        StructField("registration_date", StringType()),
+        StructField("kyc_status", StringType()),
+        StructField("risk_score", DoubleType()),
+        StructField("customer_segment", StringType()),
+        StructField("relationship_manager", StringType()),
+        StructField("status", StringType()),
+        StructField("accounts", StringType()),
+        StructField("transactions", StringType()),
+        StructField("loans", StringType()),
+        StructField("credit_info", StringType()),
+        StructField("digital_engagement", StringType()),
+    ]
+)
 
-TRANSACTION_SCHEMA = ArrayType(StructType([
-    StructField("transaction_id", StringType()),
-    StructField("account_id", StringType()),
-    StructField("date", StringType()),
-    StructField("amount", DoubleType()),
-    StructField("currency", StringType()),
-    StructField("type", StringType()),
-    StructField("category", StringType()),
-    StructField("merchant", StringType()),
-    StructField("channel", StringType()),
-    StructField("status", StringType()),
-    StructField("description", StringType()),
-]))
+ACCOUNT_SCHEMA = ArrayType(
+    StructType(
+        [
+            StructField("account_id", StringType()),
+            StructField("account_type", StringType()),
+            StructField("currency", StringType()),
+            StructField("balance", DoubleType()),
+            StructField("credit_limit", DoubleType()),
+            StructField("interest_rate", DoubleType()),
+            StructField("opened_date", StringType()),
+            StructField("status", StringType()),
+            StructField("branch_code", StringType()),
+        ]
+    )
+)
 
-LOAN_SCHEMA = ArrayType(StructType([
-    StructField("loan_id", StringType()),
-    StructField("type", StringType()),
-    StructField("currency", StringType()),
-    StructField("principal", DoubleType()),
-    StructField("outstanding_balance", DoubleType()),
-    StructField("interest_rate", DoubleType()),
-    StructField("term_months", IntegerType()),
-    StructField("monthly_payment", DoubleType()),
-    StructField("start_date", StringType()),
-    StructField("end_date", StringType()),
-    StructField("status", StringType()),
-    StructField("days_past_due", IntegerType()),
-    StructField("collateral_type", StringType()),
-]))
+TRANSACTION_SCHEMA = ArrayType(
+    StructType(
+        [
+            StructField("transaction_id", StringType()),
+            StructField("account_id", StringType()),
+            StructField("date", StringType()),
+            StructField("amount", DoubleType()),
+            StructField("currency", StringType()),
+            StructField("type", StringType()),
+            StructField("category", StringType()),
+            StructField("merchant", StringType()),
+            StructField("channel", StringType()),
+            StructField("status", StringType()),
+            StructField("description", StringType()),
+        ]
+    )
+)
 
-CREDIT_INFO_SCHEMA = StructType([
-    StructField("credit_score", IntegerType()),
-    StructField("currency", StringType()),
-    StructField("utilization_pct", DoubleType()),
-    StructField("total_limit", DoubleType()),
-    StructField("total_used", DoubleType()),
-    StructField("num_credit_accounts", IntegerType()),
-    StructField("oldest_account_age_months", IntegerType()),
-    StructField("late_payments_12m", IntegerType()),
-    StructField("inquiries_6m", IntegerType()),
-    StructField("bankruptcy_flag", BooleanType()),
-])
+LOAN_SCHEMA = ArrayType(
+    StructType(
+        [
+            StructField("loan_id", StringType()),
+            StructField("type", StringType()),
+            StructField("currency", StringType()),
+            StructField("principal", DoubleType()),
+            StructField("outstanding_balance", DoubleType()),
+            StructField("interest_rate", DoubleType()),
+            StructField("term_months", IntegerType()),
+            StructField("monthly_payment", DoubleType()),
+            StructField("start_date", StringType()),
+            StructField("end_date", StringType()),
+            StructField("status", StringType()),
+            StructField("days_past_due", IntegerType()),
+            StructField("collateral_type", StringType()),
+        ]
+    )
+)
 
-DIGITAL_ENGAGEMENT_SCHEMA = StructType([
-    StructField("mobile_app_registered", BooleanType()),
-    StructField("web_banking_registered", BooleanType()),
-    StructField("last_login_date", StringType()),
-    StructField("avg_monthly_logins", IntegerType()),
-    StructField("preferred_channel", StringType()),
-    StructField("push_notifications", BooleanType()),
-    StructField("paperless_statements", BooleanType()),
-])
+CREDIT_INFO_SCHEMA = StructType(
+    [
+        StructField("credit_score", IntegerType()),
+        StructField("currency", StringType()),
+        StructField("utilization_pct", DoubleType()),
+        StructField("total_limit", DoubleType()),
+        StructField("total_used", DoubleType()),
+        StructField("num_credit_accounts", IntegerType()),
+        StructField("oldest_account_age_months", IntegerType()),
+        StructField("late_payments_12m", IntegerType()),
+        StructField("inquiries_6m", IntegerType()),
+        StructField("bankruptcy_flag", BooleanType()),
+    ]
+)
+
+DIGITAL_ENGAGEMENT_SCHEMA = StructType(
+    [
+        StructField("mobile_app_registered", BooleanType()),
+        StructField("web_banking_registered", BooleanType()),
+        StructField("last_login_date", StringType()),
+        StructField("avg_monthly_logins", IntegerType()),
+        StructField("preferred_channel", StringType()),
+        StructField("push_notifications", BooleanType()),
+        StructField("paperless_statements", BooleanType()),
+    ]
+)
+
 
 def deduplicate(df, partition_col, order_col="load_timestamp"):
     window = Window.partitionBy(partition_col).orderBy(col(order_col).desc())
     return (
         df.withColumn("row_num", row_number().over(window))
-          .filter(col("row_num") == 1)
-          .drop("row_num")
+        .filter(col("row_num") == 1)
+        .drop("row_num")
     )
+
 
 def read_bronze(spark):
     """
@@ -154,27 +179,26 @@ def read_bronze(spark):
     """
     log.info("Reading from bronze.raw_fintech_data...")
     raw_df = spark.read.jdbc(
-        url=JDBC_URL,
-        table="bronze.raw_fintech_data",
-        properties=JDBC_PROPS
+        url=JDBC_URL, table="bronze.raw_fintech_data", properties=JDBC_PROPS
     )
     log.info(f"Bronze records loaded: {raw_df.count()}")
 
-    df = raw_df.withColumn("json", from_json(col("data").cast("string"), CUSTOMER_SCHEMA))
+    df = raw_df.withColumn(
+        "json", from_json(col("data").cast("string"), CUSTOMER_SCHEMA)
+    )
     log.info("Bronze JSON parsed successfully.")
     return df
+
 
 def write_to_silver(df, table_name):
     full_table = f"silver.{table_name}"
     count = df.count()
     log.info(f"Writing {count} rows to {full_table}...")
     df.write.jdbc(
-        url=JDBC_URL,
-        table=full_table,
-        mode="overwrite",
-        properties=JDBC_PROPS
+        url=JDBC_URL, table=full_table, mode="overwrite", properties=JDBC_PROPS
     )
     log.info(f"Done: {full_table} ({count} rows)")
+
 
 def flatten_customers(df):
     log.info("Flattening customers...")
@@ -205,14 +229,17 @@ def flatten_customers(df):
     log.info(f"Customers after dedup: {result.count()}")
     return result
 
+
 def flatten_accounts(df):
     log.info("Flattening accounts...")
     result = df.select(
         col("load_timestamp"),
         col("json.customer_id"),
-        from_json(col("json.accounts"), ACCOUNT_SCHEMA).alias("accounts")
+        from_json(col("json.accounts"), ACCOUNT_SCHEMA).alias("accounts"),
     )
-    result = result.withColumn("account", explode(col("accounts"))).drop("accounts")
+    result = result.withColumn("account", explode(col("accounts"))).drop(
+        "accounts"
+    )
     result = result.select(
         col("customer_id"),
         col("load_timestamp"),
@@ -230,14 +257,19 @@ def flatten_accounts(df):
     log.info(f"Accounts after dedup: {result.count()}")
     return result
 
+
 def flatten_transactions(df):
     log.info("Flattening transactions...")
     result = df.select(
         col("load_timestamp"),
         col("json.customer_id"),
-        from_json(col("json.transactions"), TRANSACTION_SCHEMA).alias("transactions")
+        from_json(col("json.transactions"), TRANSACTION_SCHEMA).alias(
+            "transactions"
+        ),
     )
-    result = result.withColumn("transaction", explode(col("transactions"))).drop("transactions")
+    result = result.withColumn(
+        "transaction", explode(col("transactions"))
+    ).drop("transactions")
     result = result.select(
         col("customer_id"),
         col("load_timestamp"),
@@ -257,12 +289,13 @@ def flatten_transactions(df):
     log.info(f"Transactions after dedup: {result.count()}")
     return result
 
+
 def flatten_loans(df):
     log.info("Flattening loans...")
     result = df.select(
         col("load_timestamp"),
         col("json.customer_id"),
-        from_json(col("json.loans"), LOAN_SCHEMA).alias("loans")
+        from_json(col("json.loans"), LOAN_SCHEMA).alias("loans"),
     )
     result = result.withColumn("loan", explode(col("loans"))).drop("loans")
     result = result.select(
@@ -286,12 +319,15 @@ def flatten_loans(df):
     log.info(f"Loans after dedup: {result.count()}")
     return result
 
+
 def flatten_credit_info(df):
     log.info("Flattening credit_info...")
     result = df.select(
         col("load_timestamp"),
         col("json.customer_id"),
-        from_json(col("json.credit_info"), CREDIT_INFO_SCHEMA).alias("credit_info")
+        from_json(col("json.credit_info"), CREDIT_INFO_SCHEMA).alias(
+            "credit_info"
+        ),
     )
     result = result.select(
         col("customer_id"),
@@ -311,12 +347,15 @@ def flatten_credit_info(df):
     log.info(f"Credit info after dedup: {result.count()}")
     return result
 
+
 def flatten_digital_engagement(df):
     log.info("Flattening digital_engagement...")
     result = df.select(
         col("load_timestamp"),
         col("json.customer_id"),
-        from_json(col("json.digital_engagement"), DIGITAL_ENGAGEMENT_SCHEMA).alias("digital_engagement")
+        from_json(
+            col("json.digital_engagement"), DIGITAL_ENGAGEMENT_SCHEMA
+        ).alias("digital_engagement"),
     )
     result = result.select(
         col("customer_id"),
@@ -333,20 +372,22 @@ def flatten_digital_engagement(df):
     log.info(f"Digital engagement after dedup: {result.count()}")
     return result
 
+
 def main():
     log.info("=== STARTING PYSPARK SILVER FLATTENING JOB ===")
     spark = create_spark_session()
     df = read_bronze(spark)
 
-    write_to_silver(flatten_customers(df),           "stg_customers")
-    write_to_silver(flatten_accounts(df),            "stg_accounts")
-    write_to_silver(flatten_transactions(df),        "stg_transactions")
-    write_to_silver(flatten_loans(df),               "stg_loans")
-    write_to_silver(flatten_credit_info(df),         "stg_credit_info")
-    write_to_silver(flatten_digital_engagement(df),  "stg_digital_engagement")
+    write_to_silver(flatten_customers(df), "stg_customers")
+    write_to_silver(flatten_accounts(df), "stg_accounts")
+    write_to_silver(flatten_transactions(df), "stg_transactions")
+    write_to_silver(flatten_loans(df), "stg_loans")
+    write_to_silver(flatten_credit_info(df), "stg_credit_info")
+    write_to_silver(flatten_digital_engagement(df), "stg_digital_engagement")
 
     log.info("=== PYSPARK SILVER FLATTENING JOB COMPLETE ===")
     spark.stop()
+
 
 if __name__ == "__main__":
     main()

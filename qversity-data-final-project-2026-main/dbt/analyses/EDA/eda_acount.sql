@@ -5,7 +5,7 @@ FROM silver.stg_accounts;
 
 -- 2. Null summary
 -- Finding: 486 null balances, 13,068 null credit_limit (expected — only credit_card has credit_limit)
-SELECT  
+SELECT
     COUNT(CASE WHEN account_id IS NULL THEN 1 END)      as null_account_id,
     COUNT(CASE WHEN customer_id IS NULL THEN 1 END)     as null_customer_id,
     COUNT(CASE WHEN balance IS NULL THEN 1 END)         as null_balance,
@@ -32,7 +32,7 @@ ORDER BY total DESC;
 -- 5. Balance distribution
 -- Finding: min=$237.85, max=$1,999,231,120 (multi-currency), avg=$108,395,331
 -- Finding: 0 negative balances, 486 null balances
-SELECT 
+SELECT
     MIN(balance)                                        as min_balance,
     MAX(balance)                                        as max_balance,
     ROUND(AVG(balance)::numeric, 2)                     as avg_balance,
@@ -41,7 +41,7 @@ SELECT
 FROM silver.stg_accounts;
 
 -- 6. Balance by account type
--- Finding: account_type has leading/trailing whitespace — normalized with TRIM() in dim_accounts
+-- Finding: account_type has leading/trailing whitespace normalized with TRIM() in dim_accounts
 -- Finding: balances vary widely due to multi-currency dataset (no FX conversion applied)
 -- Finding: 4 valid account types after trimming
 SELECT account_type,
@@ -62,7 +62,7 @@ GROUP BY account_type;
 
 -- 8. Interest rate distribution
 -- Finding: range 0.5%-25%, avg 12.68%, 0 nulls — valid for all account types
-SELECT 
+SELECT
     MIN(interest_rate)                          as min_rate,
     MAX(interest_rate)                          as max_rate,
     ROUND(AVG(interest_rate)::numeric, 4)       as avg_rate,
@@ -71,7 +71,7 @@ FROM silver.stg_accounts;
 
 -- 9. Opened date range
 -- Finding: range 01/01/2023 to 31/12/2024, 0 nulls
-SELECT 
+SELECT
     MIN(opened_date)                                        as earliest,
     MAX(opened_date)                                        as latest,
     COUNT(CASE WHEN opened_date IS NULL THEN 1 END)         as null_dates
@@ -87,7 +87,7 @@ ORDER BY total DESC;
 
 -- 11. Branch distribution
 -- Finding: 900 distinct branches, 0 nulls
-SELECT 
+SELECT
     COUNT(DISTINCT branch_code)                         as distinct_branches,
     COUNT(CASE WHEN branch_code IS NULL THEN 1 END)     as null_branches
 FROM silver.stg_accounts;

@@ -1,33 +1,14 @@
-"""
-qversity_dag.py
-===============
-DAG principal del pipeline ELT de Qversity Fintech/Banking.
-
-Flujo:
-    S3 (JSON)
-        └─► [1] ingest_bronze        — descarga JSON de S3, carga en bronze.raw_fintech_data
-        └─► [2] spark_flatten        — PySpark aplana arrays y deduplica → silver staging
-        └─► [3] dbt_run_silver       — dbt limpia y normaliza el staging de PySpark
-        └─► [4] dbt_run_gold         — dbt construye modelos analíticos para PowerBI
-        └─► [5] dbt_test             — dbt test: valida calidad en silver y gold
-
-Autor: Juan Pedro Ferreira
-Cohort: Qversity 2026 — Montevideo
-"""
-
 import os
+import sys
 from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 
-# ── Importar la función de ingesta Bronze ─────────────────────────────────────
-import sys
 sys.path.insert(0, "/opt/airflow/scripts")
-from load_bronze import run_bronze_ingestion
+from load_bronze import run_bronze_ingestion  # noqa: E402
 
-# ── Default args ──────────────────────────────────────────────────────────────
 default_args = {
     "owner": "juan.ferreira",
     "depends_on_past": False,
@@ -38,17 +19,15 @@ default_args = {
     "retry_delay": timedelta(minutes=5),
 }
 
-# ── Variables de entorno ───────────────────────────────────────────────────────
 DBT_PROJECT_DIR = "/opt/airflow/dbt"
 DBT_PROFILES_DIR = "/opt/airflow/dbt"
 SPARK_DIR = "/opt/airflow/spark"
 
-# ── DAG ───────────────────────────────────────────────────────────────────────
 with DAG(
     dag_id="qversity_fintech_pipeline",
     default_args=default_args,
     description="Pipeline ELT Fintech/Banking: S3 → Bronze → Silver (PySpark) → Silver/Gold (dbt)",
-    schedule_interval=None,   # Manual trigger — sin schedule automático
+    schedule_interval=None,
     catchup=False,
     tags=["qversity", "fintech", "elt"],
     doc_md="""
@@ -71,9 +50,6 @@ with DAG(
     """,
 ) as dag:
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # TAREA 1: Bronze — Descargar JSON de S3 e ingestar en PostgreSQL
-    # ──────────────────────────────────────────────────────────────────────────
     ingest_bronze = PythonOperator(
         task_id="ingest_bronze",
         python_callable=run_bronze_ingestion,
@@ -83,10 +59,6 @@ with DAG(
         La tabla se trunca antes de insertar para garantizar idempotencia.
         """,
     )
-
-    # ──────────────────────────────────────────────────────────────────────────
-    # TAREA 2: Silver (PySpark) — Flatten arrays + deduplicación
-    # ──────────────────────────────────────────────────────────────────────────
     spark_flatten = BashOperator(
         task_id="spark_flatten",
         bash_command=f"""
@@ -102,10 +74,6 @@ with DAG(
         - Escribe las staging tables en el schema silver vía JDBC
         """,
     )
-
-    # ──────────────────────────────────────────────────────────────────────────
-    # TAREA 3: Silver (dbt) — Limpieza, normalización, dimensiones y facts
-    # ──────────────────────────────────────────────────────────────────────────
     dbt_run_silver = BashOperator(
         task_id="dbt_run_silver",
         bash_command=f"""
@@ -121,9 +89,6 @@ with DAG(
         """,
     )
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # TAREA 4: Gold (dbt) — Modelos analíticos para las 24 preguntas
-    # ──────────────────────────────────────────────────────────────────────────
     dbt_run_gold = BashOperator(
         task_id="dbt_run_gold",
         bash_command=f"""
@@ -141,9 +106,6 @@ with DAG(
         """,
     )
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # TAREA 5: dbt test — Validación de calidad en Silver y Gold
-    # ──────────────────────────────────────────────────────────────────────────
     dbt_test = BashOperator(
         task_id="dbt_test",
         bash_command=f"""
@@ -159,7 +121,10 @@ with DAG(
         """,
     )
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Dependencias: Bronze → PySpark → dbt Silver → dbt Gold → dbt Test
-    # ──────────────────────────────────────────────────────────────────────────
-    ingest_bronze >> spark_flatten >> dbt_run_silver >> dbt_run_gold >> dbt_test
+    (
+        ingest_bronze
+        >> spark_flatten
+        >> dbt_run_silver
+        >> dbt_run_gold
+        >> dbt_test
+    )

@@ -1,10 +1,9 @@
--- Total: 5000 registros, uno por cliente
+-- 5,000 rows total, one per customer
 SELECT COUNT(*) as total FROM silver.stg_credit_info;
 
--- Encontré valores raros: mínimo -99 y máximo 999,999
--- El rango válido según el PDF es 300-850
--- Lo soluciono filtrando en dim_credit_info con WHERE credit_score BETWEEN 300 AND 850
--- Se pierden 492 registros inválidos, quedan 4,508
+-- Credit score range: found min=-99, max=999,999 — valid range per spec is 300-850
+-- Filtering in dim_credit_info with WHERE credit_score BETWEEN 300 AND 850
+-- 492 invalid records dropped, 4,508 remain
 SELECT
     MIN(credit_score)                               as min_score,
     MAX(credit_score)                               as max_score,
@@ -13,9 +12,8 @@ SELECT
         (ORDER BY credit_score)                     as median_score
 FROM silver.stg_credit_info;
 
--- Utilización de crédito
--- Problema: algunos valores vienen como 0.35 (decimal) y otros como 35 (porcentaje entero)
--- Lo normalizo todo a decimal 0-1 en dim_credit_info con CASE WHEN utilization_pct > 1
+-- utilization_pct has two formats: 0.35 (decimal) and 35 (integer percent)
+-- Normalizing everything to 0-1 in dim_credit_info with CASE WHEN utilization_pct > 1
 SELECT
     MIN(utilization_pct)                            as min_util,
     MAX(utilization_pct)                            as max_util,
@@ -23,37 +21,32 @@ SELECT
     COUNT(CASE WHEN utilization_pct > 1 THEN 1 END) as above_1
 FROM silver.stg_credit_info;
 
--- Bankruptcy flag
--- 568 nulls, 2263 false, 2169 true distribución bastante balanceada
+-- bankruptcy_flag: 568 nulls, 2263 false, 2169 true — fairly balanced
 SELECT bankruptcy_flag, COUNT(*) as total
 FROM silver.stg_credit_info
 GROUP BY bankruptcy_flag;
 
--- Pagos atrasados en los últimos 12 meses
--- Rango 0-12, sin valores raros
+-- late_payments_12m: range 0-12, no anomalies
 SELECT
     MIN(late_payments_12m)                          as min_late,
     MAX(late_payments_12m)                          as max_late,
     ROUND(AVG(late_payments_12m)::numeric, 2)       as avg_late
 FROM silver.stg_credit_info;
 
-
--- Nulls en total_limit y total_used
--- 157 y 152 nulls respectivamente los dejo como NULL, no tiene sentido imputar
+-- total_limit: 157 nulls, total_used: 152 nulls — keeping as NULL, no imputation
 SELECT
     COUNT(CASE WHEN total_limit IS NULL THEN 1 END) as null_limit,
     COUNT(CASE WHEN total_used IS NULL THEN 1 END)  as null_used
 FROM silver.stg_credit_info;
 
-
--- 7 monedas LATAM, muy balanceadas
+-- 7 LATAM currencies, evenly distributed
 SELECT currency, COUNT(*) as total,
        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as pct
 FROM silver.stg_credit_info
 GROUP BY currency
 ORDER BY total DESC;
 
--- 49% mobile, 49% web — muy parejo
+-- mobile ~49%, web ~49% — nearly identical adoption
 SELECT
     COUNT(*) as total,
     COUNT(CASE WHEN mobile_app_registered THEN 1 END)   as mobile_users,
@@ -62,14 +55,15 @@ SELECT
     ROUND(COUNT(CASE WHEN web_banking_registered THEN 1 END) * 100.0 / COUNT(*), 2) as web_pct
 FROM silver.stg_digital_engagement;
 
--- Encontré 'phone' que no estaba en el PDF.
+-- preferred_channel: found 'phone' not documented in the spec
+-- classified as 'other' in gold_engagement since it's neither digital nor in-person
 SELECT preferred_channel, COUNT(*) as total,
        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as pct
 FROM silver.stg_digital_engagement
 GROUP BY preferred_channel
 ORDER BY total DESC;
 
--- Rango 0-60, promedio 30, 374 nulls — los dejo como NULL
+-- avg_monthly_logins: range 0-60, avg ~30, 374 nulls — keeping as NULL
 SELECT
     MIN(avg_monthly_logins)                                 as min_logins,
     MAX(avg_monthly_logins)                                 as max_logins,
@@ -77,23 +71,20 @@ SELECT
     COUNT(CASE WHEN avg_monthly_logins IS NULL THEN 1 END)  as null_logins
 FROM silver.stg_digital_engagement;
 
--- Si intento comparar con current_date tira error: "operator does not exist: text > date"
--- Lo soluciono en dim_digital_engagement donde el macro parse_date lo convierte a DATE
--- Por eso acá solo consulto el mínimo y máximo como texto
+-- last_login_date stored as text — can't compare with current_date directly
+-- parse_date macro in dim_digital_engagement casts it to DATE
 SELECT
-    MIN(last_login_date)                                        as min_login,
-    MAX(last_login_date)                                        as max_login,
-    COUNT(CASE WHEN last_login_date IS NULL THEN 1 END)         as null_dates,
-    COUNT(CASE WHEN last_login_date > current_date THEN 1 END)  as future_dates
+    MIN(last_login_date)   as min_login,
+    MAX(last_login_date)   as max_login,
+    COUNT(CASE WHEN last_login_date IS NULL THEN 1 END) as null_dates
 FROM silver.stg_digital_engagement;
-SQL Error [42883]: ERROR: operator does not exist: text > date
-
+-- SQL Error [42883]: operator does not exist: text > date
 
 -- push_notifications: 545 nulls, paperless_statements: 553 nulls, avg_monthly_logins: 374 nulls
--- Los dejo como NULL — no tiene sentido asumir false sin confirmación
+-- keeping as NULL — assuming false without confirmation would be wrong
 SELECT
     COUNT(CASE WHEN push_notifications IS NULL THEN 1 END)    as null_push,
     COUNT(CASE WHEN paperless_statements IS NULL THEN 1 END)  as null_paperless,
     COUNT(CASE WHEN avg_monthly_logins IS NULL THEN 1 END)    as null_logins
 FROM silver.stg_digital_engagement;
--- 545	553	374
+-- 545  553  374

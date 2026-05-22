@@ -24,12 +24,12 @@
 
 ### Business Problem
 
-A fictional LATAM fintech company operating across 7 countries (Colombia, Uruguay, Argentina, Mexico, Chile, Peru, and Brazil) needs to turn raw customer data into actionable business insights. The data arrives as a complex nested JSON file containing 5,100 customer records, each with multiple accounts, transactions, loans, credit information, digital engagement metrics and more.
+A fictional LATAM fintech company operating across 7 countries (Colombia, Uruguay, Argentina, Mexico, Chile, Peru and Brazil) needs to turn raw customer data into actionable business insights. The data arrives as a complex nested JSON file containing 5,100 customer records, each with multiple accounts, transactions, loans, credit information, digital engagement metrics and more.
 
 ### Goals
 
-- Build a production-grade ELT pipeline that ingests, transforms, and exposes this data for analytics
-- Answer 24 specific business questions covering revenue, risk, customer demographics, transaction patterns, digital engagement, and product analysis
+- Build a production-grade ELT pipeline that ingests, transforms and exposes this data for analytics
+- Answer 24 specific business questions covering revenue, risk, customer demographics, transaction patterns, digital engagement and product analysis
 - Present insights through a 4 page PowerBI dashboard connected directly to the gold schema
 - Apply the knowledge of multiple technologies learned in the course
 
@@ -101,7 +101,7 @@ Without this custom image, the `spark_flatten` task would fail because PySpark c
 
 ### Layer Responsibilities
 
-**Bronze** Faithfully persists raw data from S3 as JSONB in PostgreSQL. No transformations. Provides full traceability to the original source.
+**Bronze** Persists raw data from S3 as JSONB in PostgreSQL. No transformations. Provides full traceability to the original source.
 
 **Silver (PySpark)** Reads Bronze via JDBC, explodes nested arrays into relational tables using `explode()`, deduplicates using `ROW_NUMBER()` partitioned by primary key. Writes 6 staging tables back to PostgreSQL.
 
@@ -320,44 +320,7 @@ dim_customers (5,000 rows)
 
 ### Gold Layer — Analytics Models
 
-gold_customers (one row per customer)
-│   customer_id (PK)
-│   risk_bucket, age_bucket, registration_month
-│   tenure_months, age
-│
-├──── gold_accounts (one row per account)
-│         account_id (PK), customer_id (FK)
-│         account_type, balance_usd, account_status
-│
-├──── gold_transactions (one row per transaction)
-│         transaction_id (PK), customer_id (FK)
-│         amount_usd, is_failed, is_revenue, is_international
-│         day_name, day_of_week, year_month
-│
-├──── gold_risk (one row per customer-loan combination)
-│         customer_id (FK), loan_id (FK)
-│         risk_bucket, credit_score_bucket
-│         utilization_bucket, is_delinquent
-│         dpd_bucket, interest_income_usd
-│
-├──── gold_loans (one row per loan)
-│         loan_id (PK), customer_id (FK)
-│         outstanding_balance_usd, interest_income_usd
-│         is_delinquent, dpd_bucket
-│
-├──── gold_engagement (one row per customer)
-│         customer_id (PK/FK)
-│         is_fully_digital, channel_preference
-│         age_bucket, days_since_last_login
-│
-├──── gold_products (one row per customer)
-│         customer_id (PK/FK)
-│         total_accounts, total_loans, total_products
-│
-└──── gold_revenue (one row per segment + channel + country)
-          customer_segment, channel, country
-          total_revenue_usd, avg_revenue_per_customer_usd
-          total_balance_usd, transaction_count
+![Gold tables in PowerBI Navigator](qversity-data-final-project-2026-main/powerbi/screenshots/gold_tables_powerbi.png)
 
 
 ## 5. PySpark Logic
@@ -476,7 +439,7 @@ After Bronze, we had 5,100 raw JSON records in PostgreSQL. Before answering any 
 
 #### Why PySpark is good?
 
-PySpark is built for this kind of work, it handles nested structures natively with `explode()` and `from_json()`, and scales very well.
+PySpark is built for this kind of work, it handles nested structures natively with `explode()` and `from_json()` and scales very well.
 
 #### Staging tables created by PySpark
 
@@ -521,10 +484,10 @@ The dataset had values in both Spanish and English with no consistency:
 - `YYYYMMDD`
 - `MM-DD-YYYY`
 #### Disguised nulls
-In multiple columns, null values were stored as text: `'n/a'`, `'NA'`, `'null'`, `'Null'`, `'NULL'`, `''` (empty string). Affected fields include `gender`, `relationship_manager`, `collateral_type`, `category`, `merchant`, and `description`.
+In multiple columns, null values were stored as text: `'n/a'`, `'NA'`, `'null'`, `'Null'`, `'NULL'`, `''` (empty string). Affected fields include `gender`, `relationship_manager`, `collateral_type`, `category`, `merchant`and `description`.
 
 #### Extra whitespace
-Multiple fields contained leading, trailing, and duplicate internal spaces — for example `"  dining"`, `"dining  "`, `" dining "`. Cleaned using `TRIM()` on `category`, `merchant`, `description`, `collateral_type`, `account_type`, and `channel`. First and last names were additionally normalized with `regexp_replace('\s+', ' ')` to collapse multiple internal spaces into one and `initcap()` to standardize capitalization.
+Multiple fields contained leading, trailing and duplicate internal spaces — for example `"  dining"`, `"dining  "`, `" dining "`. Cleaned using `TRIM()` on `category`, `merchant`, `description`, `collateral_type`, `account_type` and `channel`. First and last names were additionally normalized with `regexp_replace('\s+', ' ')` to collapse multiple internal spaces into one and `initcap()` to standardize capitalization.
 
 #### City name typos
 33 cities had typos: `Cusc` → `Cusco`, `Lma` → `Lima`, `Santiag` → `Santiago`, `Sao Paulp` → `Sao Paulo`, etc.
@@ -582,7 +545,7 @@ We replaced the staging tables with 6 clean dimension and fact tables:
 
 **City typo correction** — 33 known typos corrected with hardcoded CASE statements. In the future, a string similarity library (such as `fuzzywuzzy` in Python or the `pg_trgm` extension in PostgreSQL) could be used to automatically handle new unseen typos without manual intervention.
 
-**Phone normalization** — Removed parentheses, spaces, and dashes; added country prefix for numbers missing it based on the customer's `country` field.
+**Phone normalization** — Removed parentheses, spaces and dashes; added country prefix for numbers missing it based on the customer's `country` field.
 
 **Email validation** — Instead of discarding 2,052 invalid emails, added a `is_valid_email` boolean flag for downstream filtering.
 
@@ -647,7 +610,7 @@ The Gold layer takes clean, normalized data from Silver and transforms it into a
 
 **Delinquent** a loan is delinquent when `status IN ('delinquent', 'default')` OR `days_past_due > 0`. The OR condition covers cases where status has not yet been updated but overdue days already exist.
 
-**Interest income** `outstanding_balance * interest_rate / 100` applied only to loans with `status = 'current'`. Loans with status `delinquent`, `default`, and `paid_off` generate zero computable interest.
+**Interest income** `outstanding_balance * interest_rate / 100` applied only to loans with `status = 'current'`. Loans with status `delinquent`, `default` and `paid_off` generate zero computable interest.
 
 **International transaction** when the transaction currency does not match the customer's local currency: CO→COP, UY→UYU, AR→ARS, MX→MXN, CL→CLP, PE→PEN, BR→BRL. USD and EUR are always international for all countries in the dataset since no customer has USD or EUR as their local currency.
 
@@ -673,7 +636,7 @@ The dataset includes loans with `status = 'paid_off'`. These loans have a non-nu
 **Visual**: Table right side  columns: Country, Balance USD
 **Model**: `gold_accounts` (field `balance_usd`)
 
-Balances converted to USD for cross-country comparability. Peru leads with $642M, followed by Uruguay ($608M), Mexico ($600M), Argentina ($594M), Colombia ($592M), Brazil ($583M), and Chile ($541M). Total: $4,161M USD.
+Balances converted to USD for cross-country comparability. Peru leads with $642M, followed by Uruguay ($608M), Mexico ($600M), Argentina ($594M), Colombia ($592M), Brazil ($583M) Chile ($541M). Total: $4,161M USD.
 
 Assumption: local currency balances converted to USD using approximate May 2026 exchange rates.
 
@@ -719,7 +682,7 @@ To see international transaction patterns filtered by specific country, use the 
 **Visual**: Bar chart "Avg Revenue per Customer by Segment"
 **Model**: `gold_revenue` (field `avg_revenue_per_customer_usd`)
 
-Revenue calculated as the sum of completed transactions of type `payment` and `fee`, grouped by segment, divided by customer count per segment. SME leads in avg revenue per customer, followed by private_banking, retail, and premium. Differences between segments are small.
+Revenue calculated as the sum of completed transactions of type `payment` and `fee`, grouped by segment, divided by customer count per segment. SME leads in avg revenue per customer, followed by private_banking, retail and premium. Differences between segments are small.
 
 ---
 
@@ -727,7 +690,7 @@ Revenue calculated as the sum of completed transactions of type `payment` and `f
 **Visual**: Stacked bar chart "Revenue by Channel"
 **Model**: `gold_revenue` (field `total_revenue_usd`)
 
-Revenue grouped by channel: branch ($36M), pos ($36M), mobile ($34M), web ($34M), atm ($33M). NO single channel dominates. This indicates customers are well-distributed across all banking channels.
+Revenue grouped by channel: branch ($36M), pos ($36M), mobile ($34M), web ($34M), atm ($33M).
 
 ---
 
@@ -778,7 +741,7 @@ Note: Use the channel filter to see the failure rate per channel.
 **Visual 2**: Bar chart "Loan Portfolio by Type and Status" ( click on each loan type to filter the KPI)
 **Model**: `gold_loans` (field `interest_income_usd`) and `gold_risk`
 
-`interest_income_usd = outstanding_balance_usd * interest_rate / 100` for loans with `status = 'current'` only. Loans with `paid_off`, `delinquent`, and `default` status have `interest_income_usd = 0`. Total estimated annual interest income: $44M USD on the current active loan portfolio. To see interest income broken down by loan type, click on each bar in the "Loan Portfolio by Type and Status" chart — the KPI filters automatically.
+`interest_income_usd = outstanding_balance_usd * interest_rate / 100` for loans with `status = 'current'` only. Loans with `paid_off`, `delinquent` and `default` status have `interest_income_usd = 0`. Total estimated annual interest income: $44M USD on the current active loan portfolio. To see interest income broken down by loan type, click on each bar in the "Loan Portfolio by Type and Status" chart — the KPI filters automatically.
 
 ---
 
@@ -805,7 +768,7 @@ Stacked bar chart with country on the Y axis and credit score buckets (very_good
 **Visual**: Bar chart "Delinquency by Credit Utilization"
 **Model**: `gold_risk` (fields `utilization_bucket` and `is_delinquent`)
 
-Credit utilization measures what percentage of available credit a customer is using. For example, if someone has a $10,000 credit limit and currently owes $3,000, their utilization is 30% — which falls in the "moderate" bucket. The chart shows the delinquency rate for each utilization level: moderate (~47%), low (~47%), high (~45%), very_high (~43%). Higher utilization actually correlates with lower delinquency — counterintuitive but valid in LATAM fintech contexts where the most creditally active customers tend to be more financially disciplined.
+Credit utilization measures what percentage of available credit a customer is using. For example, if someone has a $10,000 credit limit and currently owes $3,000, their utilization is 30% — which falls in the "moderate" bucket. The chart shows the delinquency rate for each utilization level: moderate (~47%), low (~47%), high (~45%), very_high (43%).
 
 ---
 
@@ -813,7 +776,7 @@ Credit utilization measures what percentage of available credit a customer is us
 **Visual**: Pie chart "Days Past Due Distribution" (top left)
 **Model**: `gold_loans` (field `dpd_bucket`)
 
-50.48% of loans are current (paid on time). 24.66% are 31-60 days past due — this is the most urgent collections priority since these customers can still be recovered with timely intervention. 8.42% are 61-90 days past due, 8.26% are 90+ days (likely irrecoverable), and 8.18% are 1-30 days past due.
+50.48% of loans are current (paid on time). 24.66% are 31-60 days past due — this is the most urgent collections priority since these customers can still be recovered with timely intervention. 8.42% are 61-90 days past due, 8.26% are 90+ days (likely irrecoverable) and 8.18% are 1-30 days past due.
 
 ---
 
@@ -821,7 +784,7 @@ Credit utilization measures what percentage of available credit a customer is us
 **Visual**: Stacked bar chart "Loan Portfolio by Type and Status" (bottom center — status as legend: current/default/delinquent/paid_off)
 **Model**: `gold_loans` (fields `loan_type`, `status`, `outstanding_balance_usd`)
 
-Outstanding balance grouped by `loan_type` with `status` as the legend, converted to USD. Auto loans lead ($142M total), followed by personal ($135M), education ($130M), business ($128M), and mortgage ($120M). The stacked bars show the composition of each loan type by status — the blue (current) portion represents healthy loans, orange (delinquent) and dark blue (default) represent at-risk loans, and purple (paid_off) represents fully cancelled debt.
+Outstanding balance grouped by `loan_type` with `status` as the legend, converted to USD. Auto loans lead ($142M total), followed by personal ($135M), education ($130M), business ($128M) and mortgage ($120M). The stacked bars show the composition of each loan type by status — the blue (current) portion represents healthy loans, orange (delinquent) and dark blue (default) represent at-risk loans and purple (paid_off) represents fully cancelled debt.
 
 Total outstanding portfolio: $679M USD.
 
@@ -836,15 +799,14 @@ Assumption: 219 loans with NULL `outstanding_balance` in Silver are loans withou
 **Visual**: Stacked bar chart "Age & Products by Segment"
 **Model**: `gold_products` (with `age_bucket` from `gold_customers`)
 
-Age is calculated in Gold using `date_part('year', age(current_date, date_of_birth))` — not stored in Silver because it is a time-varying derived field. The stacked bar chart uses `age_bucket` as the legend color, showing which age groups are present within each customer segment. The 56-65 group (pink) is consistently the largest across all segments, while 18-25 (light blue) is the smallest. This visual answers both Q11 and Q24 simultaneously.
-
+Age is calculated in Gold using `date_part('year', age(current_date, date_of_birth))` — not stored in Silver because it is a time-varying derived field. The stacked bar chart uses `age_bucket` as the legend color, showing which age groups are present within each customer segment. The 56-65 group (pink) is consistently the largest across all segments, while 18-25 (light blue) is the smallest.
 ---
 
 **Q12 — What is the customer acquisition trend over time?**
 **Visual**: Line chart "Customer Acquisition Over Time"
 **Model**: `gold_customers` (field `registration_month`)
 
-Monthly count of new customers grouped by `registration_month` (YYYY-MM format). Acquisition is stable between 60 and 85 new customers per month since May 2020, with a slight upward trend toward 2021. The consistent pattern without major spikes indicates organic growth without aggressive acquisition campaigns.
+Monthly count of new customers grouped by `registration_month` (YYYY-MM format). Acquisition is stable between 60 and 85 new customers per month since May 2020, with a slight upward trend toward 2021.
 
 ---
 
@@ -876,9 +838,10 @@ Count of accounts by type: credit_card (4,461 — 25.45%), savings (4,421 — 25
 **Visual**: Stacked bar chart "Age & Products by Segment"
 **Model**: `gold_products` (field `total_products`)
 
-Products defined as accounts + loans per customer. Calculated using separate CTEs to avoid row multiplication from JOINs. Each age bucket contributes approximately 5 products on average per segment — the stacked bar shows the sum of averages across all 6 age buckets (~30 total per segment), reflecting consistent cross-selling effectiveness across all customer types. The stacked bar chart answers both Q24 (products by segment) and Q11 (age distribution by segment) simultaneously, making efficient use of dashboard space.
+Products defined as accounts + loans per customer. Calculated using separate CTEs to avoid row multiplication from JOINs. All segments average around 5 products per customer, no segment stands out.. The stacked bar chart answers both Q24 (products by segment) and Q11 (age distribution by segment) simultaneously, making efficient use of dashboard space.
 
 Assumption: products defined as bank accounts + loans only. Other financial products not present in the dataset are excluded.
+
 ![Page 4 - Customer & Engagement](qversity-data-final-project-2026-main/powerbi/screenshots/page4_customer_engagement.png)
 
 ---
@@ -898,52 +861,45 @@ Note: `balance_usd` in `gold_accounts` and `outstanding_balance_usd` in `gold_lo
 
 ## Technical Debt
 
-**Static exchange rates** — USD conversion factors are approximate as of May 2026. In production we would use a daily-updated exchange rate table from an official source (Central Bank, Open Exchange Rates, etc.).
+**Exchange rates** are hardcoded as of May 2026, in production these would come from a daily-updated source like a Central Bank API.
 
-**Silver reads PySpark staging tables directly** — Silver dbt models read from `silver.stg_*` tables using direct schema references instead of `{{ ref() }}`. This works but means dbt cannot track lineage between PySpark outputs and Silver models. Gold models correctly use `{{ ref('dim_customers') }}`, `{{ ref('fct_transactions') }}`, etc. — dbt lineage is intact from Silver to Gold. In production, PySpark staging tables would be wrapped as dbt sources to enable full end-to-end lineage tracking.
+**gold_risk is one row per customer-loan**, not per customer. A customer with 3 loans appears 3 times. PowerBI aggregations need to account for this.
 
-**gold_risk grain** — grain is customer-loan, not customer. A customer with no loans appears once with NULL loan fields. A customer with 3 loans appears 3 times. This must be accounted for when building PowerBI charts — filter by loan or aggregate correctly.
-
-**Balance removed from gold_revenue** — `total_balance_usd` was removed from `gold_revenue` because its grain (segment + channel + country) caused balance multiplication when aggregating by country in PowerBI. Q2 is answered via `gold_accounts` directly, which has the correct grain of one row per account.
-
-
+**balance_usd was removed from gold_revenue** because the grain (segment + channel + country) caused the balance to multiply when aggregating. Q2 uses gold_accounts instead, which has one row per account.
 ---
 
 ## 7. Key Business Insights
 
-These are the most significant findings across all 24 business questions:
-
-- **Only 25.76% of customers are active** — 74% are suspended, inactive, or closed. This is the most critical business concern and warrants an urgent customer reactivation strategy.
-- **43% loan delinquency rate** — nearly half of all loans have payment issues. The problem is systemic across all segments and loan types, not concentrated in any specific group.
-- **54% of transactions are international** — USD dominates cross-border activity across all 7 countries, suggesting strong e-commerce and cross-border payment demand.
-- **25% transaction failure rate** — 1 in 4 transactions fails, consistently across all channels. Root cause investigation is critical.
-- **Mobile app adoption is only 49%** — more than half of customers are not using the digital channel, representing a significant growth opportunity.
-- **Revenue is evenly distributed** — no single channel, segment, or country dominates revenue. The portfolio is well-diversified.
-- **Wednesday is the busiest transaction day** — weekdays significantly outperform weekends, indicating primarily business activity.
-- **Credit scores are uniformly distributed** — ~20% of customers in each bucket per country, reflecting the synthetic nature of the dataset.
+- **Only 25.76% of customers are active**  74% are suspended, inactive, or closed. For a fintech this is a serious problem, most of the customer base is gone.
+- **43% loan delinquency rate**  nearly half of all loans have payment issues, and it's spread evenly across all segments and loan types. Not a problem with one specific group.
+- **54% of transactions are international**  USD dominates across all 7 countries. Makes sense since none of the local currencies are USD, so any dollar transaction counts as international.
+- **1 in 4 transactions fails**  21,247 out of 85,067. Failure rate is the same across all channels so the problem is probably upstream, not channel-specific.
+- **Mobile app adoption is 49%**  half the customers have never logged in through the app.
+- **Revenue is almost identical across all channels and segments**  branch, mobile, web, atm all within a few million of each other. No clear winner.
+- **Wednesday has the most transactions, Thursday the fewest**  weekdays are much busier than weekends.
+- **Credit scores are perfectly uniform (~20% per bucket per country)**  this is a synthetic dataset, real data would never look like this.
 
 ## 8. Assumptions & Design Decisions
 
 ### Data Quality Assumptions
 
-- **Null balances** (504 accounts, 219 loans) — kept as NULL. No imputation applied. These are records without available balance information in the source system.
-- **240 customers registered under age 18** — kept in Silver and Gold. Documented but not filtered — in production this would require business validation.
+- **Null balances** (504 accounts, 219 loans) kept as NULL. No imputation applied. These are records without available balance information in the source system.
+- **240 customers registered under age 18** kept in Silver and Gold. Documented but not filtered — in production this would require business validation.
 - **2,052 invalid emails** — not discarded. Added `is_valid_email` boolean flag for downstream filtering.
-- **492 credit scores out of range (300-850)** — filtered out in Silver.
+- **492 credit scores out of range (300-850)** filtered out in Silver.
 
 ### Business Logic Decisions
 
-- **Revenue definition** — only `completed` transactions of type `payment` or `fee`. Deposits and transfers excluded as they don't represent institutional income.
-- **Delinquency** — uses OR condition: `status IN ('delinquent','default') OR days_past_due > 0`. Covers cases where status hasn't been updated yet but overdue days already exist.
-- **Interest income** — calculated only for `current` loans. `paid_off`, `delinquent`, and `default` loans generate zero computable interest.
-- **International transactions** — defined by currency mismatch with country's local currency. USD and EUR are always international since no customer in the dataset has these as local currencies.
-- **Truncate strategy for Bronze** — table is truncated before each load to guarantee idempotency. In production with daily incremental data, we would use append + deduplication by `customer_id` and `load_timestamp`.
+- **Revenue definition** only `completed` transactions of type `payment` or `fee`. Deposits and transfers excluded as they don't represent institutional income.
+- **Delinquency** uses OR condition: `status IN ('delinquent','default') OR days_past_due > 0`. Covers cases where status hasn't been updated yet but overdue days already exist.
+- **Interest income** calculated only for `current` loans. `paid_off`, `delinquent` and `default` loans generate zero computable interest.
+- **International transactions** defined by currency mismatch with country's local currency. USD and EUR are always international since no customer in the dataset has these as local currencies.
+- **Truncate strategy for Bronze** table is truncated before each load to guarantee idempotency. In production with daily incremental data, we would use append + deduplication by `customer_id` and `load_timestamp`.
 
 ### Design Trade-offs
 
 - **Static exchange rates** — USD conversion uses fixed May 2026 rates. In production, would use a daily-updated table from an official source.
 - **Silver reads staging tables directly** — Silver dbt models use direct schema references to `silver.stg_*` instead of `{{ ref() }}`. Gold models correctly use `{{ ref() }}`. In production, PySpark staging tables would be registered as dbt sources to enable full lineage tracking.
-- **gold_risk grain** — one row per customer-loan, not per customer. A customer with 3 loans appears 3 times. PowerBI aggregations must account for this.
 - **Balance removed from gold_revenue** — `total_balance_usd` was removed from `gold_revenue` because its grain (segment + channel + country) caused multiplication when aggregating by country. Q2 is answered via `gold_accounts` directly.
 - **City typo correction** — 33 known typos hardcoded in Silver. In production, would use fuzzy matching (pg_trgm or fuzzywuzzy) against a reference table.
 
@@ -998,12 +954,8 @@ qversity-data-2026-montevideo-juanpedroferreira/
 │       ├── page2_revenue_transactions.png
 │       ├── page3_risk_credit.png
 │       └── page4_customer_engagement.png
+│       └── gold_schema_navigator.png
 │
-├── docs/
-│   ├── bronze_layer.md        # Bronze layer documentation
-│   ├── silver_layer.md        # Silver layer documentation
-│   ├── gold_documentation_en.md   # Gold layer + 24 questions (English)
-│   └── gold_documentation_es.md   # Gold layer + 24 questions (Spanish)
 │
 └── data/
     └── raw/                   # Local copy of dataset (gitignored)
