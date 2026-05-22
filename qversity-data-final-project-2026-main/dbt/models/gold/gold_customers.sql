@@ -1,16 +1,5 @@
 {{ config(materialized='table', schema='gold') }}
 
--- =============================================================================
--- Gold: Customer Demographics
--- Grain: one row per customer
--- Answers: Q9, Q10, Q11, Q12, Q13, Q14
--- Business logic:
---   - Age calculated from date_of_birth to current_date
---   - Age buckets: 18-25, 26-35, 36-45, 46-55, 56-65, 65+
---   - Risk buckets: low (0-25), medium (26-50), high (51-75), critical (76-100)
---   - Tenure in months from registration_date to current_date
--- =============================================================================
-
 select
     c.customer_id,
     c.first_name,

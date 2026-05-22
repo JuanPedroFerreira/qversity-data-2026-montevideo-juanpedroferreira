@@ -1,14 +1,5 @@
 {{ config(materialized='table', schema='gold') }}
 
--- =============================================================================
--- Gold: Digital Engagement
--- Grain: one row per customer
--- Answers: Q20, Q21
--- Business logic:
---   - Fully digital: mobile AND web registered
---   - Digital preference: mobile or web vs branch/atm
--- =============================================================================
-
 select
     c.customer_id,
     c.customer_segment,
