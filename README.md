@@ -867,6 +867,7 @@ Note: `balance_usd` in `gold_accounts` and `outstanding_balance_usd` in `gold_lo
 **gold_risk is one row per customer-loan**, not per customer. A customer with 3 loans appears 3 times. PowerBI aggregations need to account for this.
 
 **balance_usd was removed from gold_revenue** because the grain (segment + channel + country) caused the balance to multiply when aggregating. Q2 uses gold_accounts instead, which has one row per account.
+
 ---
 
 ## 7. Key Business Insights
