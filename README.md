@@ -799,7 +799,8 @@ Assumption: 219 loans with NULL `outstanding_balance` in Silver are loans withou
 **Visual**: Stacked bar chart "Age & Products by Segment"
 **Model**: `gold_products` (with `age_bucket` from `gold_customers`)
 
-Age is calculated in Gold using `date_part('year', age(current_date, date_of_birth))` — not stored in Silver because it is a time-varying derived field. The stacked bar chart uses `age_bucket` as the legend color, showing which age groups are present within each customer segment. The 56-65 group (pink) is consistently the largest across all segments, while 18-25 (light blue) is the smallest.
+Age is calculated in Gold using `date_part('year', age(current_date, date_of_birth))`. It is not stored in Silver because it is a time-varying derived field. The stacked bar chart uses `age_bucket` as the legend color, showing which age groups are present within each customer segment. The 56-65 group (pink) is consistently the largest across all segments, while 18-25 (light blue) is the smallest.
+
 ---
 
 **Q12 — What is the customer acquisition trend over time?**
